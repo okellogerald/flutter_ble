@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
@@ -9,20 +10,17 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'BLE Demo',
+        debugShowCheckedModeBanner: false,
         theme: ThemeData(
+          fontFamily: 'circular',
           primarySwatch: Colors.blue,
         ),
-        home: MyHomePage(title: 'Flutter BLE Demo'),
+        home: MyHomePage(),
       );
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  final String title;
-  final FlutterBlue flutterBlue = FlutterBlue.instance;
-  final List<BluetoothDevice> devicesList = new List<BluetoothDevice>();
-  final Map<Guid, List<int>> readValues = new Map<Guid, List<int>>();
+  const MyHomePage({super.key});
 
   @override
   _MyHomePageState createState() => _MyHomePageState();
@@ -30,13 +28,16 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final _writeController = TextEditingController();
-  BluetoothDevice _connectedDevice;
-  List<BluetoothService> _services;
+  BluetoothDevice? _connectedDevice;
+  List<BluetoothService> _services = <BluetoothService>[];
+  final FlutterBlue flutterBlue = FlutterBlue.instance;
+  final List<BluetoothDevice> devicesList = <BluetoothDevice>[];
+  final Map<Guid, List<int>> readValues = new Map<Guid, List<int>>();
 
   _addDeviceTolist(final BluetoothDevice device) {
-    if (!widget.devicesList.contains(device)) {
+    if (!devicesList.contains(device)) {
       setState(() {
-        widget.devicesList.add(device);
+        devicesList.add(device);
       });
     }
   }
@@ -44,24 +45,25 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    widget.flutterBlue.connectedDevices
+    flutterBlue.connectedDevices
         .asStream()
         .listen((List<BluetoothDevice> devices) {
       for (BluetoothDevice device in devices) {
         _addDeviceTolist(device);
       }
     });
-    widget.flutterBlue.scanResults.listen((List<ScanResult> results) {
+    flutterBlue.scanResults.listen((List<ScanResult> results) {
       for (ScanResult result in results) {
         _addDeviceTolist(result.device);
       }
     });
-    widget.flutterBlue.startScan();
+    flutterBlue.startScan();
   }
 
   ListView _buildListViewOfDevices() {
-    List<Container> containers = new List<Container>();
-    for (BluetoothDevice device in widget.devicesList) {
+    List<Container> containers = <Container>[];
+    for (BluetoothDevice device in devicesList) {
+      log(device.toString());
       containers.add(
         Container(
           height: 50,
@@ -75,20 +77,18 @@ class _MyHomePageState extends State<MyHomePage> {
                   ],
                 ),
               ),
-              FlatButton(
-                color: Colors.blue,
+              ElevatedButton(
                 child: Text(
                   'Connect',
                   style: TextStyle(color: Colors.white),
                 ),
                 onPressed: () async {
-                  widget.flutterBlue.stopScan();
+                  log('tapped');
+                  // flutterBlue.stopScan();
                   try {
-                    await device.connect();
+                    await device.connect(timeout: Duration(seconds: 5));
                   } catch (e) {
-                    if (e.code != 'already_connected') {
-                      throw e;
-                    }
+                    log(e.toString());
                   } finally {
                     _services = await device.discoverServices();
                   }
@@ -113,7 +113,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   List<ButtonTheme> _buildReadWriteNotifyButton(
       BluetoothCharacteristic characteristic) {
-    List<ButtonTheme> buttons = new List<ButtonTheme>();
+    List<ButtonTheme> buttons = <ButtonTheme>[];
 
     if (characteristic.properties.read) {
       buttons.add(
@@ -122,13 +122,12 @@ class _MyHomePageState extends State<MyHomePage> {
           height: 20,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: RaisedButton(
-              color: Colors.blue,
+            child: ElevatedButton(
               child: Text('READ', style: TextStyle(color: Colors.white)),
               onPressed: () async {
                 var sub = characteristic.value.listen((value) {
                   setState(() {
-                    widget.readValues[characteristic.uuid] = value;
+                    readValues[characteristic.uuid] = value;
                   });
                 });
                 await characteristic.read();
@@ -146,7 +145,7 @@ class _MyHomePageState extends State<MyHomePage> {
           height: 20,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: RaisedButton(
+            child: ElevatedButton(
               child: Text('WRITE', style: TextStyle(color: Colors.white)),
               onPressed: () async {
                 await showDialog(
@@ -164,7 +163,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           ],
                         ),
                         actions: <Widget>[
-                          FlatButton(
+                          ElevatedButton(
                             child: Text("Send"),
                             onPressed: () {
                               characteristic.write(
@@ -172,7 +171,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               Navigator.pop(context);
                             },
                           ),
-                          FlatButton(
+                          ElevatedButton(
                             child: Text("Cancel"),
                             onPressed: () {
                               Navigator.pop(context);
@@ -194,11 +193,11 @@ class _MyHomePageState extends State<MyHomePage> {
           height: 20,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: RaisedButton(
+            child: ElevatedButton(
               child: Text('NOTIFY', style: TextStyle(color: Colors.white)),
               onPressed: () async {
                 characteristic.value.listen((value) {
-                  widget.readValues[characteristic.uuid] = value;
+                  readValues[characteristic.uuid] = value;
                 });
                 await characteristic.setNotifyValue(true);
               },
@@ -212,10 +211,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   ListView _buildConnectDeviceView() {
-    List<Container> containers = new List<Container>();
+    List<Container> containers = <Container>[];
 
     for (BluetoothService service in _services) {
-      List<Widget> characteristicsWidget = new List<Widget>();
+      List<Widget> characteristicsWidget = <Widget>[];
 
       for (BluetoothCharacteristic characteristic in service.characteristics) {
         characteristicsWidget.add(
@@ -236,8 +235,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 Row(
                   children: <Widget>[
-                    Text('Value: ' +
-                        widget.readValues[characteristic.uuid].toString()),
+                    Text(
+                        'Value: ' + readValues[characteristic.uuid].toString()),
                   ],
                 ),
                 Divider(),
@@ -273,7 +272,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
-          title: Text(widget.title),
+          title: Text('Bluetooth'),
         ),
         body: _buildView(),
       );
