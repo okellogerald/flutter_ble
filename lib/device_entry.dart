@@ -15,7 +15,7 @@ class BluetoothDeviceListEntry extends ListTile {
           onLongPress: onLongPress,
           enabled: enabled,
           leading: const Icon(Icons.devices),
-          title: Text(device.name ?? ""),
+          title: Text(device.name ?? "UNKNOWN DEVICE"),
           subtitle: Text(device.address.toString()),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -24,7 +24,8 @@ class BluetoothDeviceListEntry extends ListTile {
                   ? Container(
                       margin: const EdgeInsets.all(8.0),
                       child: DefaultTextStyle(
-                        style: _computeTextStyle(rssi),
+                        style: TextStyle(
+                            fontFamily: 'circular', color: _computeColor(rssi)),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: <Widget>[
@@ -45,30 +46,24 @@ class BluetoothDeviceListEntry extends ListTile {
           ),
         );
 
-  static TextStyle _computeTextStyle(int rssi) {
-    /**/ if (rssi >= -35) {
-      return TextStyle(color: Colors.greenAccent[700]);
+  static Color? _computeColor(int rssi) {
+    if (rssi >= -35) {
+      return Colors.greenAccent[700];
     } else if (rssi >= -45) {
-      return TextStyle(
-          color: Color.lerp(
-              Colors.greenAccent[700], Colors.lightGreen, -(rssi + 35) / 10));
+      return Color.lerp(
+          Colors.greenAccent[700], Colors.lightGreen, -(rssi + 35) / 10);
     } else if (rssi >= -55) {
-      return TextStyle(
-          color: Color.lerp(
-              Colors.lightGreen, Colors.lime[600], -(rssi + 45) / 10));
+      return Color.lerp(Colors.lightGreen, Colors.lime[600], -(rssi + 45) / 10);
     } else if (rssi >= -65) {
-      return TextStyle(
-          color: Color.lerp(Colors.lime[600], Colors.amber, -(rssi + 55) / 10));
+      return Color.lerp(Colors.lime[600], Colors.amber, -(rssi + 55) / 10);
     } else if (rssi >= -75) {
-      return TextStyle(
-          color: Color.lerp(
-              Colors.amber, Colors.deepOrangeAccent, -(rssi + 65) / 10));
+      return Color.lerp(
+          Colors.amber, Colors.deepOrangeAccent, -(rssi + 65) / 10);
     } else if (rssi >= -85) {
-      return TextStyle(
-          color: Color.lerp(
-              Colors.deepOrangeAccent, Colors.redAccent, -(rssi + 75) / 10));
+      return Color.lerp(
+          Colors.deepOrangeAccent, Colors.redAccent, -(rssi + 75) / 10);
     } else {
-      return const TextStyle(color: Colors.redAccent);
+      return Colors.redAccent;
     }
   }
 }

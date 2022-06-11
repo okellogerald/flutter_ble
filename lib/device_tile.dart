@@ -39,7 +39,7 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
           onTap: () => ref.read(selectedDeviceIDProvider.state).state =
               widget.device.address,
         ),
-        if (selectedDeviceID == widget.device.address)
+        if (selectedDeviceID == widget.device.address && !device.isBonded)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextButton(
@@ -49,7 +49,7 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
                     fixedSize: const Size(double.maxFinite, 40)),
                 child: const Text('CONNECT')),
           ),
-        if (connectedDeviceID == widget.device.address)
+        if (connectedDeviceID == widget.device.address || device.isBonded)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextButton(
