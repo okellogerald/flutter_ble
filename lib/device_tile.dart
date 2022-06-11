@@ -53,7 +53,7 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextButton(
-                onPressed: _onConnectClick,
+                onPressed: _onDisconnectClick,
                 style: TextButton.styleFrom(
                     backgroundColor: Colors.black,
                     fixedSize: const Size(double.maxFinite, 40)),
@@ -66,23 +66,15 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
   _onConnectClick() async {
     final address = device.address;
     try {
-      bool bonded = false;
-      if (device.isBonded) {
-        log('Unbonding from $address}...');
-        await FlutterBluetoothSerial.instance
-            .removeDeviceBondWithAddress(device.address);
+      log('Bonding with $address}...');
+      final bonded = (await FlutterBluetoothSerial.instance
+          .bondDeviceAtAddress(device.address))!;
+      if (bonded) {
         ref.refresh(selectedDeviceIDProvider);
-        log('Unbonding from $address} has succed');
-      } else {
-        log('Bonding with $address}...');
-        bonded = (await FlutterBluetoothSerial.instance
-            .bondDeviceAtAddress(device.address))!;
-        if (bonded) {
-          ref.refresh(selectedDeviceIDProvider);
-          ref.read(connectedDeviceIDProvider.state).state = device.address;
-        }
-        log('Bonding with $address} has ${bonded ? 'succed' : 'failed'}.');
+        ref.read(connectedDeviceIDProvider.state).state = device.address;
       }
+      log('Bonding with $address} has ${bonded ? 'succed' : 'failed'}.');
+
       widget.onConnected(bonded);
     } catch (ex) {
       showDialog(
@@ -90,6 +82,35 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
         builder: (BuildContext context) {
           return AlertDialog(
             title: const Text('Error occured while bonding'),
+            content: Text(ex.toString()),
+            actions: <Widget>[
+              TextButton(
+                child: const Text("Close"),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+  _onDisconnectClick() async {
+    final address = device.address;
+    try {
+      log('Unbonding from $address}...');
+      await FlutterBluetoothSerial.instance
+          .removeDeviceBondWithAddress(device.address);
+      ref.refresh(connectedDeviceIDProvider);
+      log('Unbonding from $address} has succed');
+    } catch (ex) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Error occured while unbonding'),
             content: Text(ex.toString()),
             actions: <Widget>[
               TextButton(
