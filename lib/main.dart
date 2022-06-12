@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'discovery.dart';
+import 'bluetooth_peripheral.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +43,7 @@ class _PermissionPageState extends State<PermissionPage> {
   @override
   Widget build(BuildContext context) {
     final isEnabled = bluetoothState?.isEnabled ?? false;
-    if (isEnabled) return const DiscoveryPage();
+    if (isEnabled) return const PeripheralApp();
     return Scaffold(
       body: Center(
           child: Column(

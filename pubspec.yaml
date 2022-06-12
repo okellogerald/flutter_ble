@@ -13,6 +13,7 @@ dependencies:
   flutter_bluetooth_serial: ^0.4.0
   flutter_riverpod: ^1.0.3
   permission_handler: ^9.2.0
+  flutter_ble_peripheral: ^1.0.0
 
 dev_dependencies:
   flutter_test:
