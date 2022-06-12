@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'discovery.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const FlutterBlueApp());
 }
 
@@ -12,14 +13,12 @@ class FlutterBlueApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return 
-    
-    ProviderScope(
+    return ProviderScope(
       child: MaterialApp(
         theme: ThemeData(fontFamily: 'circular'),
         color: Colors.lightBlue,
         debugShowCheckedModeBanner: false,
-        home: const DiscoveryPage(),
+        home: const PermissionPage(),
       ),
     );
   }
@@ -45,8 +44,23 @@ class _PermissionPageState extends State<PermissionPage> {
   Widget build(BuildContext context) {
     final isEnabled = bluetoothState?.isEnabled ?? false;
     if (isEnabled) return const DiscoveryPage();
-    return const Scaffold(
-      body: Center(child: Text('Enable Bluetooth!')),
+    return Scaffold(
+      body: Center(
+          child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('Enable Bluetooth And Click REFRESH'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: TextButton(
+                onPressed: _checkIfBluetoothIsEnabled,
+                style: TextButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    fixedSize: const Size(double.maxFinite, 40)),
+                child: const Text('REFRESH')),
+          ),
+        ],
+      )),
     );
   }
 

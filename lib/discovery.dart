@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:developer';
+import 'dart:math';
 import 'package:bluetoothflutterblue/device_tile.dart';
+import 'package:bluetoothflutterblue/provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
-import 'device_entry.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class DiscoveryPage extends StatefulWidget {
+class DiscoveryPage extends ConsumerStatefulWidget {
   /// If true, discovery starts on page start, otherwise user must press action button.
   final bool start;
   const DiscoveryPage({this.start = true, Key? key}) : super(key: key);
@@ -14,48 +15,38 @@ class DiscoveryPage extends StatefulWidget {
   _DiscoveryPage createState() => _DiscoveryPage();
 }
 
-class _DiscoveryPage extends State<DiscoveryPage> {
+class _DiscoveryPage extends ConsumerState<DiscoveryPage> {
   StreamSubscription<BluetoothDiscoveryResult>? _streamSubscription;
-  final results = <BluetoothDiscoveryResult>[];
-  bool isDiscovering = false;
 
   @override
   void initState() {
+    WidgetsBinding.instance!.addPostFrameCallback((timeStamp) {
+      if (widget.start) {
+        ref.read(discoveryStateProvider.state).state = DiscoveryState.loading;
+        _startDiscovery();
+      }
+    });
     super.initState();
-
-    isDiscovering = widget.start;
-    if (isDiscovering) {
-      _startDiscovery();
-    }
   }
 
   void _restartDiscovery() {
-    setState(() {
-      results.clear();
-      isDiscovering = true;
-    });
-
+    ref.refresh(devicesProvider);
+    ref.read(discoveryStateProvider.state).state = DiscoveryState.loading;
     _startDiscovery();
   }
 
   void _startDiscovery() {
     _streamSubscription =
-        FlutterBluetoothSerial.instance.startDiscovery().listen((r) {
-      setState(() {
-        final existingIndex = results.indexWhere(
-            (element) => element.device.address == r.device.address);
-        if (existingIndex >= 0) {
-          results[existingIndex] = r;
-        } else {
-          results.add(r);
-        }
-      });
+        FlutterBluetoothSerial.instance.startDiscovery().listen((device) {
+      log(device.rssi);
+      final devices =
+          List<BluetoothDiscoveryResult>.from(ref.read(devicesProvider));
+      devices.add(device);
+      ref.read(devicesProvider.state).state = devices;
     });
 
     _streamSubscription!.onDone(() {
-      setState(() {
-        isDiscovering = false;
-      });
+      ref.read(discoveryStateProvider.state).state = DiscoveryState.done;
     });
   }
 
@@ -67,13 +58,16 @@ class _DiscoveryPage extends State<DiscoveryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final discoveryState = ref.watch(discoveryStateProvider);
+    final devices = ref.watch(devicesProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: isDiscovering
+        title: discoveryState.isLoading
             ? const Text('Discovering devices')
             : const Text('Discovered devices'),
         actions: <Widget>[
-          isDiscovering
+          discoveryState.isLoading
               ? FittedBox(
                   child: Container(
                     margin: const EdgeInsets.all(16.0),
@@ -89,28 +83,10 @@ class _DiscoveryPage extends State<DiscoveryPage> {
         ],
       ),
       body: ListView.builder(
-        itemCount: results.length,
+        itemCount: devices.length,
         itemBuilder: (BuildContext context, index) {
-          BluetoothDiscoveryResult result = results[index];
-          final device = result.device;
-          return DeviceTile(
-            device,
-            result.rssi,
-            onConnected: (bonded) {
-              setState(() {
-                results[results.indexOf(result)] = BluetoothDiscoveryResult(
-                    device: BluetoothDevice(
-                      name: device.name ?? 'UNKNOWN',
-                      address: device.address,
-                      type: device.type,
-                      bondState: bonded
-                          ? BluetoothBondState.bonded
-                          : BluetoothBondState.none,
-                    ),
-                    rssi: result.rssi);
-              });
-            },
-          );
+          BluetoothDiscoveryResult result = devices[index];
+          return DeviceTile(result.device, result.rssi);
         },
       ),
     );

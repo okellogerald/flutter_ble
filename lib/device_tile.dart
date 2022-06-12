@@ -1,35 +1,26 @@
 import 'dart:developer';
 import 'package:bluetoothflutterblue/provider.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'device_entry.dart';
 
 class DeviceTile extends ConsumerStatefulWidget {
-  const DeviceTile(this.device, this.rssi,
-      {required this.onConnected, Key? key})
-      : super(key: key);
+  const DeviceTile(this.device, this.rssi, {Key? key}) : super(key: key);
   final BluetoothDevice device;
   final int rssi;
-  final ValueChanged<bool> onConnected;
 
   @override
   ConsumerState<DeviceTile> createState() => _DeviceTileState();
 }
 
 class _DeviceTileState extends ConsumerState<DeviceTile> {
-  late BluetoothDevice device;
-
-  @override
-  void initState() {
-    device = widget.device;
-    super.initState();
-  }
-
   @override
   Widget build(BuildContext context) {
     final selectedDeviceID = ref.watch(selectedDeviceIDProvider);
-    final connectedDeviceID = ref.watch(connectedDeviceIDProvider);
+    final bondState = ref.watch(bondStateProvider);
+    log(widget.device.bondState.toString());
 
     return Column(
       children: [
@@ -39,7 +30,7 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
           onTap: () => ref.read(selectedDeviceIDProvider.state).state =
               widget.device.address,
         ),
-        if (selectedDeviceID == widget.device.address && !device.isBonded)
+        if (selectedDeviceID == widget.device.address && !widget.device.isBonded)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextButton(
@@ -47,82 +38,118 @@ class _DeviceTileState extends ConsumerState<DeviceTile> {
                 style: TextButton.styleFrom(
                     backgroundColor: Colors.black,
                     fixedSize: const Size(double.maxFinite, 40)),
-                child: const Text('CONNECT')),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (bondState.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 20),
+                        child: CupertinoActivityIndicator(color: Colors.white),
+                      ),
+                    const Text('CONNECT'),
+                  ],
+                )),
           ),
-        if (connectedDeviceID == widget.device.address || device.isBonded)
+        if (selectedDeviceID == widget.device.address && widget.device.isBonded)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: TextButton(
                 onPressed: _onDisconnectClick,
                 style: TextButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: Colors.red,
                     fixedSize: const Size(double.maxFinite, 40)),
-                child: const Text('DISCONNECT')),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (bondState.isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 20),
+                        child: CupertinoActivityIndicator(color: Colors.white),
+                      ),
+                    const Text('DISCONNECT',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                )),
           )
       ],
     );
   }
 
   _onConnectClick() async {
-    final address = device.address;
+    final address = widget.device.address;
     try {
       log('Bonding with $address}...');
+      ref.read(bondStateProvider.state).state = BondState.loading;
       final bonded = (await FlutterBluetoothSerial.instance
-          .bondDeviceAtAddress(device.address))!;
+          .bondDeviceAtAddress(widget.device.address))!;
       if (bonded) {
-        ref.refresh(selectedDeviceIDProvider);
-        ref.read(connectedDeviceIDProvider.state).state = device.address;
+        final devices =
+            List<BluetoothDiscoveryResult>.from(ref.read(devicesProvider));
+        final index = devices.indexWhere((e) => e.device.address == address);
+        if (index != -1) {
+          devices[index] = BluetoothDiscoveryResult(
+              device: BluetoothDevice(
+                  name: widget.device.name ?? 'UNKNOWN',
+                  address: widget.device.address,
+                  type: widget.device.type,
+                  bondState: BluetoothBondState.bonded),
+              rssi: widget.rssi);
+        }
+        ref.read(devicesProvider.state).state = devices;
       }
-      log('Bonding with $address} has ${bonded ? 'succed' : 'failed'}.');
-
-      widget.onConnected(bonded);
-    } catch (ex) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Error occured while bonding'),
-            content: Text(ex.toString()),
-            actions: <Widget>[
-              TextButton(
-                child: const Text("Close"),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+      ref.read(bondStateProvider.state).state = BondState.done;
+      log('Bonding with $address} has ${bonded ? 'succeded' : 'failed'}.');
+    } catch (error) {
+      ref.read(bondStateProvider.state).state = BondState.done;
+      _showErrorDialog('$error');
     }
   }
 
   _onDisconnectClick() async {
-    final address = device.address;
+    final address = widget.device.address;
     try {
       log('Unbonding from $address}...');
+      ref.read(bondStateProvider.state).state = BondState.loading;
       await FlutterBluetoothSerial.instance
-          .removeDeviceBondWithAddress(device.address);
-      ref.refresh(connectedDeviceIDProvider);
+          .removeDeviceBondWithAddress(widget.device.address);
+      final devices =
+          List<BluetoothDiscoveryResult>.from(ref.read(devicesProvider));
+      final index = devices.indexWhere((e) => e.device.address == address);
+      if (index != -1) {
+        devices[index] = BluetoothDiscoveryResult(
+            device: BluetoothDevice(
+                name: widget.device.name ?? 'UNKNOWN',
+                address: widget.device.address,
+                type: widget.device.type,
+                bondState: BluetoothBondState.none),
+            rssi: widget.rssi);
+      }
+      ref.read(devicesProvider.state).state = devices;
+      ref.read(bondStateProvider.state).state = BondState.done;
       log('Unbonding from $address} has succed');
-    } catch (ex) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Error occured while unbonding'),
-            content: Text(ex.toString()),
-            actions: <Widget>[
-              TextButton(
-                child: const Text("Close"),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              ),
-            ],
-          );
-        },
-      );
+    } catch (error) {
+      ref.read(bondStateProvider.state).state = BondState.done;
+      _showErrorDialog('$error');
     }
+  }
+
+  _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Error occured while unbonding'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: const Text("Close"),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 }
